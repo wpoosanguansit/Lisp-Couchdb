@@ -1,0 +1,237 @@
+(
+(:RESULTS-FOR TEST-RESUME-REVIEW)
+(:ARGUMENTS (:SUITE TEST-RESUME-REVIEW))
+(:FEATURES (:COM.GIGAMONKEYS.ASDF-EXTENSIONS :RT
+            :HUNCHENTOOT-SBCL-DEBUG-PRINT-VARIABLE-ALIST :CLOSER-MOP
+            :KMR-NORMAL-DSDC :KMR-NORMAL-CESD :KMR-MOP :SPLIT-SEQUENCE
+            CFFI-FEATURES:FLAT-NAMESPACE CFFI-FEATURES:X86 CFFI-FEATURES:UNIX
+            :CFFI CFFI-SYS::FLAT-NAMESPACE :ASDF-SYSTEM-CONNECTIONS :CL-PPCRE
+            :PARENSCRIPT :CHUNGA :FLEXI-STREAMS :LITTLE-ENDIAN
+            :BORDEAUX-THREADS :THREAD-SUPPORT :SB-BSD-SOCKETS-ADDRINFO :ASDF
+            :SB-THREAD :ANSI-CL :COMMON-LISP :SBCL :SB-DOC :SB-TEST :SB-LDB
+            :SB-PACKAGE-LOCKS :SB-UNICODE :SB-EVAL :SB-SOURCE-LOCATIONS
+            :IEEE-FLOATING-POINT :X86 :UNIX :ELF :LINUX :LARGEFILE :GENCGC
+            :STACK-GROWS-DOWNWARD-NOT-UPWARD :C-STACK-IS-CONTROL-STACK
+            :COMPARE-AND-SWAP-VOPS :UNWIND-TO-FRAME-AND-CALL-VOP
+            :RAW-INSTANCE-INIT-VOPS :STACK-ALLOCATABLE-CLOSURES
+            :ALIEN-CALLBACKS :CYCLE-COUNTER :LINKAGE-TABLE :OS-PROVIDES-DLOPEN
+            :OS-PROVIDES-PUTWC :OS-PROVIDES-SUSECONDS-T))
+(:DATETIME 3435604604)
+)
+(
+(:suite TEST-RESUME-REVIEW)
+(:name TEST-1)
+(:START-TIME-UNIVERSAL 3435604604)
+(:SECONDS 0.001d0)
+(:CONSES 48344)
+(:PROBLEM-KIND "Error")
+(:PROBLEM-STEP :TESTING)
+(:PROBLEM-CONDITION "#<UNBOUND-VARIABLE DOC {ACFB819}>")
+(:PROBLEM-CONDITION-DESCRIPTION "The variable DOC is unbound.")
+(:PROBLEM-BACKTRACE "0: (SB-DEBUG::MAP-BACKTRACE #<CLOSURE (LAMBDA #) {ACFC175}>)[:EXTERNAL]
+1: (SB-DEBUG:BACKTRACE 536870911 #<SB-IMPL::STRING-OUTPUT-STREAM {ACFC111}>)
+2: (LIFT::GET-BACKTRACE #<unavailable argument>)
+3: ((FLET #:LAMBDA1662) #<UNBOUND-VARIABLE DOC {ACFB819}>)
+4: ((FLET #:LAMBDA1662) #<UNBOUND-VARIABLE DOC {ACFB819}>)[:EXTERNAL]
+5: (SIGNAL #<UNBOUND-VARIABLE DOC {ACFB819}>)[:EXTERNAL]
+6: (ERROR #<UNBOUND-VARIABLE DOC {ACFB819}>)[:EXTERNAL]
+7: ((SB-PCL::FAST-METHOD LIFT::RUN-TEST-INTERNAL (LIFT:TEST-MIXIN SYMBOL T))
+    #<unavailable argument>
+    #<unavailable argument>
+    #<TEST-RESUME-REVIEW TEST-RESUME-REVIEW {CCC1E11}>
+    TEST-1
+    #<TEST-RESUME-REVIEW: no tests defined>)[:EXTERNAL]
+8: ((SB-PCL::FAST-METHOD LIFT::TESTSUITE-RUN
+     (LIFT:TEST-MIXIN LIFT:TEST-RESULT))
+    #<unavailable argument>
+    #<unavailable argument>
+    #<TEST-RESUME-REVIEW TEST-RESUME-REVIEW {CCC1E11}>
+    #<TEST-RESUME-REVIEW: no tests defined>)
+9: ((SB-PCL::FAST-METHOD LIFT::DO-TESTING (LIFT:TEST-MIXIN T T))
+    #<unavailable argument>
+    #<unavailable argument>
+    #<unavailable argument>
+    #<TEST-RESUME-REVIEW: no tests defined>
+    #<CLOSURE (LAMBDA #) {CCC9C05}>)
+10: ((SB-PCL::FAST-METHOD LIFT::DO-TESTING-IN-ENVIRONMENT
+      (LIFT:TEST-MIXIN T T))
+     #<unavailable argument>
+     #<unavailable argument>
+     #<TEST-RESUME-REVIEW TEST-RESUME-REVIEW {CCC1E11}>
+     #<TEST-RESUME-REVIEW: no tests defined>
+     #<CLOSURE (LAMBDA #) {CCC9C05}>)
+11: ((SB-PCL::FAST-METHOD LIFT::DO-TESTING-IN-ENVIRONMENT :AROUND
+      (LIFT:TEST-MIXIN T T))
+     #<unavailable argument>
+     #S(SB-PCL::FAST-METHOD-CALL
+        :FUNCTION #<FUNCTION #>
+        :PV NIL
+        :NEXT-METHOD-CALL NIL
+        :ARG-INFO (3))
+     #<TEST-RESUME-REVIEW TEST-RESUME-REVIEW {CCC1E11}>
+     #<TEST-RESUME-REVIEW: no tests defined>
+     #<CLOSURE (LAMBDA #) {CCC9C05}>)
+12: ((SB-PCL::FAST-METHOD LIFT::RUN-TESTS-INTERNAL (LIFT:TEST-MIXIN))
+     #<unavailable argument>
+     #<unavailable argument>
+     #<TEST-RESUME-REVIEW TEST-RESUME-REVIEW {CCC1E11}>)[:EXTERNAL]
+13: ((SB-PCL::FAST-METHOD LIFT::RUN-TESTS-INTERNAL (SYMBOL))
+     #<unavailable argument>
+     #<unavailable argument>
+     TEST-RESUME-REVIEW)[:EXTERNAL]
+14: (LIFT:RUN-TESTS)[:EXTERNAL]
+15: ((LAMBDA ()))
+16: (SB-INT:SIMPLE-EVAL-IN-LEXENV
+     (UNWIND-PROTECT
+         (LET ((LIFT::*TEST-IS-BEING-DEFINED?* T))
+           (SETF LIFT::*CURRENT-TEST-CASE-NAME* NIL)
+           (SETF LIFT::*CURRENT-TESTSUITE-NAME*
+                   'TEST-RESUME-REVIEW
+                 (LIFT::TEST-SLOTS 'TEST-RESUME-REVIEW)
+                   'NIL
+                 (LIFT::TESTSUITE-DYNAMIC-VARIABLES 'TEST-RESUME-REVIEW)
+                   'NIL
+                 (LIFT::TESTSUITE-FUNCTION-SPECS 'TEST-RESUME-REVIEW)
+                   'NIL)
+           (LIFT::EMPTY-TEST-TABLES 'TEST-RESUME-REVIEW)
+           (LET ((LIFT:*TEST-EVALUATE-WHEN-DEFINED?* NIL))
+             (LIFT:ADDTEST (TEST-RESUME-REVIEW)
+                           (ENSURE
+                            (MAKE-INSTANCE 'RESUME-REVIEW :ID
+                                           (SYMB (CDR (ASSOC :_ID DOC)))
+                                           :RESUME
+                                           (SYMB (CDR (ASSOC :RESUME DOC)))
+                                           :STATUS (CDR (ASSOC :STATUS DOC))
+                                           :CREATED-DATE
+                                           (CDR (ASSOC :CREATED-DATE DOC))
+                                           :UPDATED-DATE
+                                           (CDR (ASSOC :UPDATED-DATE DOC))
+                                           :REVIEW-CONTENT
+                                           (CDR (ASSOC :REVIEW-CONTENT DOC)))))
+             (SETF LIFT::*TESTSUITE-TEST-COUNT* NIL))
+           (UNLESS
+               (OR LIFT::*TEST-IS-BEING-COMPILED?*
+                   LIFT::*TEST-IS-BEING-LOADED?*)
+             (LET ((LIFT:*TEST-BREAK-ON-ERRORS?* LIFT:*TEST-BREAK-ON-ERRORS?*))
+               (LIFT:RUN-TESTS :SUITE 'TEST-RESUME-REVIEW))))
+       (SETF LIFT::*TEST-IS-BEING-COMPILED?*
+               (REMOVE '#:G1247 LIFT::*TEST-IS-BEING-COMPILED?*))
+       (SETF LIFT::*TEST-IS-BEING-LOADED?*
+               (REMOVE '#:G1247 LIFT::*TEST-IS-BEING-LOADED?*))
+       (SETF LIFT::*TEST-IS-BEING-EXECUTED?*
+               (REMOVE '#:G1247 LIFT::*TEST-IS-BEING-EXECUTED?*)))
+     #<NULL-LEXENV>)
+17: (SB-INT:SIMPLE-EVAL-IN-LEXENV
+     (LIFT:DEFTESTSUITE TEST-RESUME-REVIEW NIL NIL
+                        (:TESTS
+                         ((ENSURE
+                           (MAKE-INSTANCE 'RESUME-REVIEW :ID
+                                          (SYMB (CDR (ASSOC :_ID DOC))) :RESUME
+                                          (SYMB (CDR (ASSOC :RESUME DOC)))
+                                          :STATUS (CDR (ASSOC :STATUS DOC))
+                                          :CREATED-DATE
+                                          (CDR (ASSOC :CREATED-DATE DOC))
+                                          :UPDATED-DATE
+                                          (CDR (ASSOC :UPDATED-DATE DOC))
+                                          :REVIEW-CONTENT
+                                          (CDR
+                                           (ASSOC :REVIEW-CONTENT DOC)))))))
+     #<NULL-LEXENV>)
+18: (SWANK::EVAL-REGION
+     \"(lift:deftestsuite test-resume-review ()
+	   ()
+	   (:tests
+	    ((ensure (make-instance 'resume-review
+				     :id (symb (cdr (assoc :_id doc)))
+				     :resume (symb (cdr (assoc :resume doc)))
+				     :status (cdr (assoc :status doc))
+				     :created-date (cdr (assoc :created-date doc))
+				     :updated-date (cdr (assoc :updated-date doc))
+				     :review-content (cdr (assoc :review-content doc)))))))
+\")
+19: ((LAMBDA ()))
+20: (SWANK::TRACK-PACKAGE #<CLOSURE (LAMBDA #) {C9F43E5}>)
+21: (SWANK::CALL-WITH-RETRY-RESTART
+     \"Retry SLIME REPL evaluation request.\"
+     #<CLOSURE (LAMBDA #) {C9F4375}>)
+22: (SWANK::CALL-WITH-BUFFER-SYNTAX NIL #<CLOSURE (LAMBDA #) {C9F435D}>)
+23: (SWANK::REPL-EVAL
+     \"(lift:deftestsuite test-resume-review ()
+	   ()
+	   (:tests
+	    ((ensure (make-instance 'resume-review
+				     :id (symb (cdr (assoc :_id doc)))
+				     :resume (symb (cdr (assoc :resume doc)))
+				     :status (cdr (assoc :status doc))
+				     :created-date (cdr (assoc :created-date doc))
+				     :updated-date (cdr (assoc :updated-date doc))
+				     :review-content (cdr (assoc :review-content doc)))))))
+\")
+24: (SB-INT:SIMPLE-EVAL-IN-LEXENV
+     (SWANK:LISTENER-EVAL \"(lift:deftestsuite test-resume-review ()
+	   ()
+	   (:tests
+	    ((ensure (make-instance 'resume-review
+				     :id (symb (cdr (assoc :_id doc)))
+				     :resume (symb (cdr (assoc :resume doc)))
+				     :status (cdr (assoc :status doc))
+				     :created-date (cdr (assoc :created-date doc))
+				     :updated-date (cdr (assoc :updated-date doc))
+				     :review-content (cdr (assoc :review-content doc)))))))
+\")
+     #<NULL-LEXENV>)
+25: (SWANK::EVAL-FOR-EMACS
+     (SWANK:LISTENER-EVAL \"(lift:deftestsuite test-resume-review ()
+	   ()
+	   (:tests
+	    ((ensure (make-instance 'resume-review
+				     :id (symb (cdr (assoc :_id doc)))
+				     :resume (symb (cdr (assoc :resume doc)))
+				     :status (cdr (assoc :status doc))
+				     :created-date (cdr (assoc :created-date doc))
+				     :updated-date (cdr (assoc :updated-date doc))
+				     :review-content (cdr (assoc :review-content doc)))))))
+\")
+     \"COMMON-LISP-USER\"
+     8)
+26: (SWANK::PROCESS-REQUESTS NIL)
+27: ((LAMBDA ()))
+28: ((LAMBDA (SWANK-BACKEND::HOOK SWANK-BACKEND::FUN))
+     #<FUNCTION SWANK:SWANK-DEBUGGER-HOOK>
+     #<CLOSURE (LAMBDA #) {C917EFD}>)
+29: (SWANK::CALL-WITH-REDIRECTED-IO
+     #<SWANK::CONNECTION {C78C7A1}>
+     #<CLOSURE (LAMBDA #) {C917F0D}>)
+30: (SWANK::CALL-WITH-CONNECTION
+     #<SWANK::CONNECTION {C78C7A1}>
+     #<CLOSURE (LAMBDA #) {C917EFD}>)
+31: (SWANK::HANDLE-REQUESTS #<SWANK::CONNECTION {C78C7A1}> NIL)
+32: (SWANK::CALL-WITH-BINDINGS NIL #<CLOSURE (LAMBDA #) {C917ED5}>)
+33: ((FLET SB-THREAD::WITH-MUTEX-THUNK))
+34: ((FLET #:WITHOUT-INTERRUPTS-BODY-[CALL-WITH-MUTEX]477))
+35: (SB-THREAD::CALL-WITH-MUTEX
+     #<CLOSURE (FLET SB-THREAD::WITH-MUTEX-THUNK) {B6749295}>
+     #S(SB-THREAD:MUTEX
+        :NAME \"thread result lock\"
+        :%OWNER #<SB-THREAD:THREAD \"repl-thread\" RUNNING {C91A109}>
+        :STATE 1)
+     #<SB-THREAD:THREAD \"repl-thread\" RUNNING {C91A109}>
+     T)
+36: ((LAMBDA ()))
+37: (\"foreign function: #x806480C\")
+38: (\"foreign function: #x8052C21\")
+39: (\"foreign function: #x805BD9D\")
+40: (\"foreign function: #xB7FCC240\")
+"))
+(
+(:TEST-CASE-COUNT 1)
+(:TEST-SUITE-COUNT 1)
+(:FAILURE-COUNT 0)
+(:ERROR-COUNT 1)
+(:EXPECTED-FAILURE-COUNT 0)
+(:EXPECTED-ERROR-COUNT 0)
+(:START-TIME-UNIVERSAL 3435604604)
+(:END-TIME-UNIVERSAL 3435604604)
+(:ERRORS ((("TEST-RESUME-REVIEW" . "COMMON-LISP-USER")
+           ("TEST-1" . "COMMON-LISP-USER"))))
+)

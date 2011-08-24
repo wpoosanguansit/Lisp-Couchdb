@@ -1,0 +1,138 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((company-profile company-profile))
+  (if (not (dirty-marker company-profile))
+      (values company-profile t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'company-profile (list (id company-profile))) ()  
+			     (value-list-of company-profile 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev company-profile) rev)
+	       (setf (dirty-marker company-profile) nil)
+	       (values company-profile ok)))))
+
+
+(defmethod save-or-update ((company-profile company-profile))
+  (if (persisted-object-p company-profile)
+      (update company-profile)
+      (save company-profile)))
+
+;;check the condition before saving
+
+(defmethod save :before ((company-profile company-profile))
+  (if (deleted-p company-profile)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user company-profile)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save company-profile initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'company-profile-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'company-profile id) () () ()))
+  (make-company-profile document))
+
+(defmethod retrieve ((object (eql 'company-profile-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(company-profile _view company-profile company-profile-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-company-profile documents))
+
+(defmethod erase ((company-profile company-profile))
+  (let* ((ok) (object) 
+	 (prior-company-profile (copy-instance company-profile))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-company-profile) "deleted")
+	   (setf (updated-date prior-company-profile) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-company-profile)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev company-profile) (rev object))
+	(setf (status company-profile) "deleted")
+	(setf (updated-date company-profile) (get-today-date))
+	(setf (dirty-marker company-profile) nil)))
+    (values company-profile ok)))
+
+(defmethod erase :before ((company-profile company-profile))
+  (if (deleted-persisted-object-p company-profile)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p company-profile))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase company-profile initial argument"
+				     :reason "company-profile has to be persisted before it can be updated")))
+
+(defmethod update ((company-profile company-profile))
+  (if (not (dirty-marker company-profile))
+      (values company-profile t)
+      (progn
+	(setf (updated-date company-profile) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'company-profile (id company-profile)) () 
+			(substitute-item-in-list 
+			 (value-list-of company-profile 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev company-profile) rev)
+	  (setf (dirty-marker company-profile) nil)
+	  (values company-profile ok)))))
+
+(defmethod udpate :before ((company-profile company-profile))
+  (if (deleted-persisted-object-p company-profile)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p company-profile))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update company-profile initial argument"
+				     :reason "company-profile has to be persisted before it can be erased")))
+
+(defun make-company-profile (document)
+  (make-instance 'company-profile 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :users (retrieve-object-list 'user-by-id (cdr (assoc :users document)))
+		 :status (cdr (assoc :status document))
+		 :addresses (retrieve-object-list 'address-by-id (cdr (assoc :addresses document)))
+		 :phone-numbers (retrieve-object-list 'phone-number-by-id (cdr (assoc :phone-numbers document)))
+		 :emails (retrieve-object-list 'email-by-id (cdr (assoc :emails document)))
+		 :pictures (retrieve-object-list 'picture-by-id (cdr (assoc :pictures document)))
+		 :websites (retrieve-object-list 'website-by-id (cdr (assoc :websites document)))
+		 :plan-type (cdr (assoc :plan-type document))
+		 :consultant-note (cdr (assoc :consultant-note document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-company-profile-complete (document)
+  (make-instance 'company-profile 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (retrieve-object-complete-list #'make-user (cdr (assoc :users document)))
+		 :status (cdr (assoc :status document))
+		 :addresses (retrieve-object-complete-list #'make-address-complete (cdr (assoc :addresses document)))
+		 :phone-numbers (retrieve-object-complete-list #'make-phone-number-complete 
+							       (cdr (assoc :phone-numbers document)))
+		 :emails (retrieve-object-complete-list #'make-email-complete (cdr (assoc :emails document)))
+		 :pictures (retrieve-object-complete-list #'make-picture-complete (cdr (assoc :pictures document)))
+		 :websites (retrieve-object-complete-list #'make-website-complete (cdr (assoc :websites document)))
+		 :plan-type (cdr (assoc :plan-type document))
+		 :consultant-note (cdr (assoc :consultant-note document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

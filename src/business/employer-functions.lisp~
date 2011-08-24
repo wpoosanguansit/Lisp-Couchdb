@@ -1,0 +1,59 @@
+(in-package :careerpacific)
+
+(export '())
+
+(contextl:define-layered-method apply-for-job-posting :in-layer employer
+				((job-posting job-posting) (resume resume) &optional consultant-note)
+				(if (and (not (has-been-applied-p job-posting resume))
+					 (string-equal "reviewed" (status resume)))
+				    (save (make-instance 'job-application :user *current-user*
+							 :job-posting job-posting :resume resume
+							 :status "selected"))))
+
+(contextl:define-layered-method view-job-application :in-layer employer ((job-application job-application))
+				(if (and (string-equal "submitted" (status job-application))
+					 (eql *current-user* (user (job-posting job-application))))
+				    (progn
+				      (setf (status job-posting) "viewed")
+				      (update job-posting))))
+
+(contextl:define-layered-method post-interview-questions :in-layer employer 
+				((job-application job-application) (interview-question interview-question))
+				(if (and (eql *current-user* (user (job-posting job-application)))
+					 (persisted-object-p interview-question))
+				    (progn
+				      (add job-application interview-question)
+				      (setf (status job-application) "information-requested")
+				      (update job-application))))
+
+(contextl:define-layered-method post-interview-questions :in-layer employer 
+				((job-application job-application) (interview-questions list))
+				(if (and (eql *current-user* (user (job-posting job-application)))
+					 (all-elements-are-of-type 'interview-question interview-questions))
+				    (progn
+				      (iterate:iterate (iterate:for interview-question iterate:in (interview-questions))
+						       (add job-application interview-question))
+						       (setf (status job-application) "information-requested")
+						       (update job-application))))
+
+(contextl:define-layered-method review-interview-questions :in-layer employer ((job-application job-application))
+				(if (and (string-equal "interview-question-reviewed" (status job-application))
+					 (eql *current-user* (user (job-posting job-application))))
+				    (progn
+				      (setf (status job-application) "acknowledged")
+				      (update job-application))))
+
+(contextl:define-layered-method request-personal-interview :in-layer employer ((job-application job-application))
+				(if (eql *current-user* (user (job-posting job-application)))
+				    (progn
+				      (setf (status job-application) "personal-interview-requested")
+				      (update job-application))))
+
+(contextl:define-layered-method hire :in-layer employer ((job-application job-application))
+				(if (eql *current-user* (user job-application))
+				    (progn
+				      (setf (status job-application) "hired")
+				      (setf resume (retrieve 'resume-by-id (id (resume job-application))))
+				      (setf (status resume) "hired")
+				      (update job-application)
+				      (update resume))))

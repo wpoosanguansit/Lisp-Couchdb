@@ -1,0 +1,126 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((email email))
+  (if (not (dirty-marker email))
+      (values email t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'email (list (id email))) ()  
+			     (value-list-of email 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev email) rev)
+	       (setf (dirty-marker email) nil)
+	       (values email ok)))))
+
+(defmethod save-or-update ((email email))
+  (if (persisted-object-p email)
+      (update email)
+      (save email)))
+
+;;check the condition before saving
+
+(defmethod save :before ((email email))
+  (if (deleted-persisted-object-p email)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user email)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save email initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'email-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'email id) () () ()))
+  (make-email document))
+
+(defmethod retrieve ((object (eql 'email-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(email _view email email-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-email documents))
+
+(defmethod erase ((email email))
+  (let* ((ok) (object)
+	 (prior-email (copy-instance email))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-email) "deleted")
+	   (setf (updated-date prior-email) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-email)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev email) (rev object))
+	(setf (status email) "deleted")
+	(setf (updated-date email) (get-today-date))
+	(setf (dirty-marker email) nil)))
+    (values email ok)))
+
+(defmethod erase :before ((email email))
+  (if (deleted-persisted-object-p email)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p email))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase email initial argument"
+				     :reason "email has to be persisted before it can be erased")))
+
+(defmethod update ((email email))
+  (if (not (dirty-marker email))
+      (values email t)
+      (progn
+	(setf (updated-date email) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'email (id email)) () 
+			(substitute-item-in-list 
+			 (value-list-of email 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev email) rev)
+	  (setf (dirty-marker email) nil)
+	  (values email ok)))))
+
+(defmethod udpate :before ((email email))
+  (if (deleted-persisted-object-p email)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p email))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update email initial argument"
+				     :reason "email has to be persisted before it can be updated")))
+
+(defun make-email (document)
+  (make-instance 'email 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (retrieve 'user-by-id (cdr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :email-type (cdr (assoc :email-type document))
+		 :email (cdr (assoc :email document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-email-complete (document)
+  (make-instance 'email 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (make-user (cadr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :email-type (cdr (assoc :email-type document))
+		 :email (cdr (assoc :email document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

@@ -1,0 +1,9 @@
+(in-package :careerpacific)
+
+;;this is the convinient methods for objects like
+;;resume and company-profile to add item to sub object list.
+
+(defgeneric add (object value))
+
+(defgeneric erase (object value))
+

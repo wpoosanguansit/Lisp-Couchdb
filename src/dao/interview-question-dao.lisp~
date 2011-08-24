@@ -1,0 +1,138 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((interview-question interview-question))
+  (if (not (dirty-marker interview-question))
+      (values interview-question t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'interview-question (list (id interview-question))) ()  
+			     (value-list-of interview-question 'as-alist 'without 
+					    '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev interview-question) rev)
+	       (setf (dirty-marker interview-question) nil)
+	       (values interview-question ok)))))
+
+(defmethod save-or-update ((interview-question interview-question))
+  (if (persisted-object-p interview-question)
+      (update interview-question)
+      (save interview-question)))
+
+;;check the condition before saving
+
+(defmethod save :before ((interview-question interview-question))
+  (if (deleted-persisted-object-p interview-question)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (job-application interview-question)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save interview-question initial argument"
+				     :reason "job-application has to be persisted before saving")))
+  
+;;this is to establish the relationship between the main object and sub object
+
+(defmethod save :after ((interview-question interview-question))
+  (let* ((job-application (job-application interview-question)))
+    (if (stringp job-application)
+	(setf job-application (retrieve 'job-application-by-id job-application)))
+    (add job-application interview-question)
+    (update job-application)))
+
+(defmethod retrieve ((object (eql 'interview-question-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'interview-question id) () () ()))
+  (make-interview-question document))
+
+(defmethod retrieve ((object (eql 'interview-question-by-job-application-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(interview-question _view interview-question 
+						  interview-question-by-job-application-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-interview-question documents))
+
+(defmethod erase ((interview-question interview-question))
+  (let* ((ok) (object)
+	 (prior-interview-question (copy-instance interview-question))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-interview-question) "deleted")
+	   (setf (updated-date prior-interview-question) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-interview-question)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev interview-question) (rev object))
+	(setf (status interview-question) "deleted")
+	(setf (updated-date interview-question) (get-today-date))
+	(setf (dirty-marker interview-question) nil)))
+    (values interview-question ok)))
+
+(defmethod erase :before ((interview-question interview-question))
+  (if (deleted-persisted-object-p interview-question)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p interview-question))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase interview-question initial argument"
+				     :reason "interview-question has to be persisted before it can be erased")))
+
+(defmethod update ((interview-question interview-question))
+  (if (not (dirty-marker interview-question))
+      (values interview-question t)
+      (progn
+	(setf (updated-date interview-question) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'interview-question (id interview-question)) () 
+			(substitute-item-in-list 
+			 (value-list-of interview-question 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev interview-question) rev)
+	  (setf (dirty-marker interview-question) nil)
+	  (values interview-question ok)))))
+
+(defmethod udpate :before ((interview-question interview-question))
+  (if (deleted-persisted-object-p interview-question)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p interview-question))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update interview-question initial argument"
+				     :reason "interview-question has to be persisted before it can be updated")))
+
+(defun make-interview-question (document)
+  (make-instance 'interview-question 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :job-application (retrieve 'job-application-by-id (cdr (assoc :job-application document)))
+		 :status (cdr (assoc :status document))
+		 :interview-question (cdr (assoc :interview-question document))
+		 :interview-answer (cdr (assoc :interview-answer document))
+		 :consultant-note (cdr (assoc :consultant-note document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-interview-question-complete (document)
+  (make-instance 'interview-question 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :job-application (make-job-application (cadr (assoc :job-application document)))
+		 :status (cdr (assoc :status document))
+		 :interview-question (cdr (assoc :interview-question document))
+		 :interview-answer (cdr (assoc :interview-answer document))
+		 :consultant-note (cdr (assoc :consultant-note document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

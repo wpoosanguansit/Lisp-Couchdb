@@ -1,0 +1,140 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+;;an error is thrown if the object is already saved
+
+(defmethod save ((address address))
+  (if (not (dirty-marker address))
+      (values address t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'address (list (id address))) ()  
+			     (value-list-of address 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev address) rev)
+	       (setf (dirty-marker address) nil)
+	       (values address ok)))))
+
+(defmethod save-or-update ((address address))
+  (if (persisted-object-p address)
+      (update address)
+      (save address)))
+
+;;check the condition before saving
+
+(defmethod save :before ((address address))
+  (if (deleted-persisted-object-p address)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "address illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user address)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save address initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'address-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'address id) () () ()))
+  (make-address document))
+
+(defmethod retrieve ((object (eql 'address-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(address _view address address-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-address documents))
+
+(defmethod erase ((address address))
+  (let* ((ok) (object) 
+	 (prior-address (copy-instance address))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-address) "deleted")
+	   (setf (updated-date prior-address) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-address)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev address) (rev object))
+	(setf (status address) "deleted")
+	(setf (updated-date address) (get-today-date))
+	(setf (dirty-marker address) nil)))
+    (values address ok)))
+
+(defmethod erase :before ((address address))
+  (if (deleted-persisted-object-p address)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "address illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p address))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase address initial argument"
+				     :reason "address has to be persisted before it can be erased")))
+
+(defmethod update ((address address))
+  (if (not (dirty-marker address))
+      (values address t)
+      (progn
+	(setf (updated-date address) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'address (id address)) () 
+			(substitute-item-in-list 
+			 (value-list-of address 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev address) rev)
+	  (setf (dirty-marker address) nil)
+	  (values address ok)))))
+
+(defmethod udpate :before ((address address))
+  (if (deleted-persisted-object-p address)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "address illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p address))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update address initial argument"
+				     :reason "address has to be persisted before it can be updated")))
+
+(defun make-address (document)
+  (make-instance 'address 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (retrieve 'user-by-id (cdr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :address-type (cdr (assoc :address-type document))
+		 :apartment-number (cdr (assoc :apartment-number document))
+		 :street (cdr (assoc :street document))
+		 :city (cdr (assoc :city document))
+		 :country (cdr (assoc :country document))
+		 :zipcode (cdr (assoc :zipcode document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+;;for job application which save the whole object and sub objects,
+;;we need a another make function that instantiate from the full
+;;document, not just the id of the sub object
+
+(defun make-address-complete (document)
+  (make-instance 'address 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (make-user (cadr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :address-type (cdr (assoc :address-type document))
+		 :apartment-number (cdr (assoc :apartment-number document))
+		 :street (cdr (assoc :street document))
+		 :city (cdr (assoc :city document))
+		 :country (cdr (assoc :country document))
+		 :zipcode (cdr (assoc :zipcode document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

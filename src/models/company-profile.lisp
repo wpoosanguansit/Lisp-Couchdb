@@ -1,0 +1,352 @@
+(in-package :careerpacific)
+
+(export '())
+
+(defclass company-profile ()
+  ((id                 :initarg :id
+		       :initform nil
+		       :accessor id)
+   (rev                :initarg :rev
+		       :initform nil
+		       :accessor rev)
+   (users              :initarg :users
+		       :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason ":users must be provided.")
+		       :accessor users)
+   (addresses          :initarg :addresses
+		       :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason ":addresses must be provided.")
+		       :accessor addresses)  
+   (phone-numbers      :initarg :phone-numbers
+		       :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason ":phone-number must be provided.")
+		       :accessor phone-numbers)
+   (emails             :initarg :emails
+		       :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason ":emails must be provided.")
+		       :accessor emails)
+   (pictures           :initarg :pictures
+		       :initform nil
+		       :accessor pictures)
+   (websites           :initarg :websites
+		       :initform nil
+		       :accessor websites)
+   (plan-type          :initarg :plan-type
+		       :initform "standard"
+		       :accessor plan-type)
+   (consultant-note    :initarg :consultant-note
+		       :initform nil
+		       :accessor consultant-note)
+   (status             :initarg :status
+		       :initform "active"
+		       :accessor status)
+   (created-date       :initarg :created-date
+		       :initform (funcall #'get-today-date)
+		       :reader created-date)
+   (updated-date       :initarg :updated-date
+		       :initform (funcall #'get-today-date)
+		       :accessor updated-date)
+   (dirty-marker       :initarg :dirty-marker
+		       :initform t
+		       :accessor dirty-marker)))
+
+;;this is to set the variables after initialization
+
+(defmethod initialize-instance :after ((self company-profile) &rest args)
+  (if (not (and (all-elements-are-of-user-type "employer" (users self))
+		(all-elements-are-persisted-object-p (users self))))    
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason "user-type has to be a persisted employer objects"))
+  (if (not (and (all-elements-are-of-type 'address (addresses self))
+		(all-elements-are-persisted-object-p (addresses self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason "addresses has to be a list of address objects"))
+  (if (not (and (all-elements-are-of-type 'phone-number (phone-numbers self))
+		(all-elements-are-persisted-object-p (phone-numbers self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason "phone-numbers has to be a list of phone-number objects"))
+  (if (not (and (all-elements-are-of-type 'email (emails self))
+		(all-elements-are-persisted-object-p (emails self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason "emails has to be a list of  email objects"))
+  (if (not (member (status self) *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (status self) *valid-object-status*)))
+  (if (not (member (plan-type self) *valid-employer-plan-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "company-profile initial argument"
+				     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (plan-type self) *valid-employer-plan-type*)))
+  (if (not (id self))
+      (setf (id self) (generate-unique-id (id (user self)) "company_profile"))))
+
+;;immutable slots
+
+;;(defmethod (setf created-date) :before (value (self company-profile))
+;;  (error 'careerpacific-illegal-operation-error
+;;				     :error-number 3001 :error-type "company-profile illegal setf"
+;;				     :reason "created-date is immutable, it can not be setf"))
+
+;;check arguement passed
+
+(defmethod (setf id) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "skill illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason "id has to be string. 
+                                      it has to be in the format \"user@email.com_company-profile_1\"")))
+
+(defmethod (setf rev) :before (value (self company-profile))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason "rev has to be string")))
+
+
+(defmethod (setf users) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-user-type "employer" value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason "user has to be an id string or a persisted employer object.
+                      in case of string, it has to be in the format \"user@email.com\"")))
+
+(defmethod (setf addresses) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-type 'address value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "addresses passed :  ~{~a~^, ~} is not valid, 
+                                      it has to be a list of address objects" value))))
+
+(defmethod (setf phone-numbers) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-type 'phone-number value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "phone-numbers passed :  ~{~a~^, ~} is not valid, 
+                                      it has to be a list of phone-number object " value))))
+
+(defmethod (setf emails) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-type 'email value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "emails passed :  ~{~a~^, ~} is not valid, 
+                                      it has to be a list of email objects" value))))
+
+(defmethod (setf websites) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-type 'website value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "websites passed :  ~{~a~^, ~} are not valid, 
+                                      it has to be a list of website objects" value))))
+
+(defmethod (setf pictures) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (all-elements-are-of-type 'picture value)
+		(all-elements-are-persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "pictures passed :  ~{~a~^, ~} are not valid, 
+                                      it has to be a list of work-experience objects" value))))
+
+(defmethod (setf plan-type) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-employer-plan-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "plan-type passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-employer-plan-type*))))
+
+(defmethod (setf consultant-note) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason "consultant-note has to be string")))
+
+(defmethod (setf status) :before (value (self company-profile))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "company-profile illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-object-status*))))
+
+(defmethod (setf updated-date) :before (value (self company-profile))
+  (if (not (stringp value)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "address setf argument"
+	     :reason (format nil "updated-date passed : ~a  is not a valid value. 
+              it has to be a date" value))))
+
+(defmethod (setf dirty-marker) :before (value (self company-profile))
+  (if (not (member value '(nil t))) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "company-profile setf argument"
+	     :reason (format nil "dirty-marker passed is not a valid value : ~a. it has to be one 
+                                      of nil or t" value))))
+
+
+;;this method check the values being set and set the dirty-marker to t when setf is called
+
+(defmethod (setf id) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf rev) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf users) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf addresses) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf phone-numbers) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf emails) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf websites) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf pictures) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf plan-type) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf consultant-note) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf status) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf updated-date) :after (value (self company-profile))
+  (setf (dirty-marker self) t))
+
+;;method accessing the slot
+
+(defmethod user :before ((self company-profile))
+  )
+
+;;convinient methods to add items to sub object list
+
+(defmethod add ((self company-profile) (value user))
+  (if (and (not (member value (users self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (string-equal "employer" (user-type value)))
+      (setf (users self) (cons value (users self)))))
+
+(defmethod add ((self company-profile) (value address))
+  (if (and (not (member value (addresses self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (eql 'address (type-of value)))
+      (setf (addresses self) (cons value (addresses self)))))
+
+(defmethod add ((self company-profile) (value phone-number))
+  (if (and (not (member value (phone-numbers self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (eql 'phone-number (type-of value)))
+      (setf (phone-numbers self) (cons value (phone-numbers self)))))
+
+(defmethod add ((self company-profile) (value email))
+  (if (and (not (member value (emails self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (eql 'email (type-of value)))
+      (setf (emails self) (cons value (emails self)))))
+
+(defmethod add ((self company-profile) (value picture))
+  (if (and (not (member value (pictures self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (eql 'picture (type-of value)))
+      (setf (pictures self) (cons value (pictures self)))))
+
+(defmethod add ((self company-profile) (value website))
+  (if (and (not (member value (websites self) :test #'same-persisted-object-p))
+	   (persisted-object-p value)
+	   (eql 'website (type-of value)))
+      (setf (websites self) (cons value (websites self)))))
+
+;;erase methods
+
+(defmethod erase ((self company-profile) (value user))
+  (if (and (persisted-object-p value) (string-equal "employer" (user-type value))) 
+      (setf (users self) (remove value (users self) :test #'same-persisted-object-p))))
+
+(defmethod erase ((self company-profile) (value address))
+  (if (and (persisted-object-p value) 
+	   (eql 'address (type-of value))) 
+      (setf (addresses self) (remove value (addresses self) :test #'same-persisted-object-p))))
+
+(defmethod erase ((self company-profile) (value phone-number))
+  (if (and (persisted-object-p value)
+	   (eql 'phone-number (type-of value)))
+      (setf (phone-numbers self) (remove value (phone-numbers self) :test #'same-persisted-object-p))))
+
+(defmethod erase ((self company-profile) (value email))
+  (if (and (persisted-object-p value)
+	   (eql 'email (type-of value)))
+      (setf (emails self) (remove value (emails self) :test #'same-persisted-object-p))))
+
+
+(defmethod erase ((self company-profile) (value picture))
+  (if (and (persisted-object-p value)
+	   (eql 'picture (type-of value)))
+      (setf (pictures self) (remove value (pictures self) :test #'same-persisted-object-p))))
+
+(defmethod erase ((self company-profile) (value website))
+  (if (and (persisted-object-p value) 
+	   (eql 'website (type-of value)))
+      (setf (websites self) (remove value (websites self) :test #'same-persisted-object-p))))

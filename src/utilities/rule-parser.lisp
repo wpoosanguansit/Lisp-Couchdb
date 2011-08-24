@@ -1,0 +1,231 @@
+(in-package :careerpacific)
+
+(export '())
+
+;;this is taken from the website http://kzar.co.uk/blog/?p=11
+
+(defun do-rule-fun (name regexp string function)
+"Search the string for the regexp and return the result of running the function on the matches as a token list"
+  (let ((matches (all-matches regexp string)))
+    (loop for (start end) on matches by #'cddr
+       collect (list name start end 
+                     (funcall function (format nil (subseq string start end)))))))
+
+(defmacro make-rule (name regexp &body body)
+  "Return a function that calls do-rule-fun taking a string to search as it's paramter. AKA return a regexp rule"
+  `(let ((scanner (create-scanner ,regexp)))
+     (lambda (string)
+       (do-rule-fun ',name scanner string (lambda (,name) ,@body)))))
+
+(defun flatten (tree)
+  "Takes a tree and returns the tree flattened it into a list"
+  (when tree
+    (if (consp tree)
+        (append (flatten (car tree)) (flatten (cdr tree)))
+        (cons tree nil))))
+
+(defmacro with-token ((&key (type nil) (start nil) (end nil) (value nil))
+                      token &body body)
+  "Take a token and some keywords and put the parts of the token into the keywords"
+  `(let (,@(when type `((,type (first ,token))))
+        ,@(when start `((,start (second ,token))))
+        ,@(when end `((,end (third ,token))))
+        ,@(when value `((,value (fourth ,token)))))
+    ,@body))
+
+(defun clash? (existing-tokens new-token)
+  (when existing-tokens
+    (with-token (:start new-start :end new-end) new-token
+      (with-token (:start old-start :end old-end) (car existing-tokens)
+        (if (or (> new-start old-end)
+                (< new-end old-start))
+            (if (consp (cdr existing-tokens))
+                (clash? (cdr existing-tokens) new-token)
+                nil)
+            t)))))
+                           
+(defun remove-clashing-tokens (existing-tokens new-tokens)
+  "Return the new-tokens list of tokens minus any that clashed with existing tokens"
+  (let ((good-new-tokens))
+    (dolist (new-token new-tokens)
+      (if (not (clash? existing-tokens new-token))
+          (push new-token good-new-tokens)))
+    good-new-tokens))
+
+(defun tokenise (string token-rules)
+  "Takes a string and a list of token-rules and returns a list of tokens"
+  (let (tokens)
+    (dolist (rule token-rules)
+      (setf tokens (append (remove-clashing-tokens tokens (funcall rule string))
+                           tokens)))
+    (sort tokens #'< :key #'cadr)))
+
+(defun find-pattern (pattern token-list)
+  "Take a token list and a pattern in it to match and it will return a list of matches"
+  (let (match-position (start 0))  
+    (loop while (setf match-position (search pattern (mapcar #'car token-list) :start2 start))
+       do (setf start (+ 1 match-position))
+       collect (loop repeat (length pattern)
+                  for x = match-position then (+ x 1)
+                  collect (nth x token-list)))))
+
+(defun apply-rule-fun (pattern name func token-list)
+  "Take a rule and 'run' it"
+  (let ((new-tokens
+         (loop for match in (find-pattern pattern token-list)
+            collect (list name 
+                          (cadr (car match))
+                          (third (car (last match)))
+                          (apply func (mapcar #'fourth match))))))
+    (sort (append (remove-clashing-tokens new-tokens token-list) new-tokens) 
+          #'< :key #'cadr)))
+        
+(defmacro craft-rule (pattern name &body body)
+  "Macro that should make an easier interface to use than apply-rule-fun. Give it all the info appart from the list of tokens and it returns a function that will take the list of tokens"
+  (loop for (key val) on pattern by #'cddr
+     collect key into keys
+     collect val into vals
+     finally (return
+               `(lambda (token-list)
+                  (apply-rule-fun ',keys ',name
+                                  (lambda ,vals ,@body) token-list)))))
+
+(defun apply-logic-rules (token-list rules)
+"Take some tokens and a list of logic rules and return the new token list"
+  (let ((tokens token-list))
+    (loop for rule in rules
+       do (setf tokens (apply rule (list tokens))))
+    tokens))
+
+(defun parse (string token-rules logic-rules)
+  "Take a string, the token and logic rules and return the tokens"
+  (apply-logic-rules (tokenise string token-rules) logic-rules))
+
+;; Todo
+; 
+; Sort out the naming of the various functions and rules
+; e.g. what's the difference from a logic and token rule!?
+;
+; Write code to check gramitical correct-ness
+
+(defvar *date-token-rules* 
+  (list
+   (make-rule day "[0-9]+rd" (parse-integer day :junk-allowed t))
+   (make-rule day "[0-9]+th" (parse-integer day :junk-allowed t))
+   (make-rule day "[0-9]+st" (parse-integer day :junk-allowed t))
+   (make-rule day-of-week "(?i:Mon(day)?)" 1)
+   (make-rule day-of-week "(?i:Tue(sday)?)" 2)
+   (make-rule day-of-week "(?i:Wed(nesday)?)" 3)
+   (make-rule day-of-week "(?i:Thu(rsday)?)" 4)
+   (make-rule day-of-week "(?i:Fri(day)?)" 5)
+   (make-rule day-of-week "(?i:Sat(urday)?)" 6)
+   (make-rule day-of-week "(?i:Sun(day)?)" 7)
+   (make-rule month "(?i:Jan(uary)?)" 1)
+   (make-rule month "(?i:Feb(ruary)?)" 2)
+   (make-rule month "(?i:Mar(ch)?)" 3)
+   (make-rule month "(?i:Apr(il)?)" 4)
+   (make-rule month "(?i:May)" 5)
+   (make-rule month "(?i:Jun(e)?)" 6)
+   (make-rule month "(?i:Jul(y)?)" 7)
+   (make-rule month "(?i:Aug(ust)?)" 8)
+   (make-rule month "(?i:Sep(tember)?)" 9)
+   (make-rule month "(?i:Oct(ober)?)" 10)
+   (make-rule month "(?i:Nov(ember)?)" 11)
+   (make-rule month "(?i:Dec(ember)?)" 12)
+
+   (make-rule date "(?i:[0-9]+[/\\ \-][0-9]+[/\\ \-][0-9]+)"
+     (let* ((date-list (split "[/\\ \-]" "08/09/2008"))
+            (day (parse-integer (car date-list)))
+            (month (parse-integer (cadr date-list)))
+            (year (parse-integer (caddr date-list))))
+       (make-date day month year)))
+  
+   (make-rule date "(?i:Now)" 
+     (get-universal-time))
+
+   (make-rule date "(?i:Today)" 
+     (get-universal-time))
+ 
+   (make-rule date-range "(?i:This week)" 
+     (with-date (:day-of-week day-of-week) (get-universal-time) 
+       (cons
+        (x-days (get-universal-time) (- day-of-week)) 
+        (x-days (get-universal-time) (- 6 day-of-week)))))
+
+   (make-rule date-range "(?i:Last week)"
+     (with-date (:day-of-week day-of-week) (get-universal-time)
+       (cons
+        (x-days (get-universal-time) (- (+ day-of-week 7)))
+        (x-days (get-universal-time) (- (- day-of-week) 1)))))
+
+   (make-rule date-range "(?i:Next week)"
+     (with-date (:day-of-week day-of-week) (get-universal-time)
+       (cons
+        (x-days (get-universal-time) (- 7 day-of-week))
+        (x-days (get-universal-time) (+ 6 (- 7 day-of-week))))))
+
+   (make-rule date-range "(?i:This month)" 
+     (with-date (:month month :year year) (get-universal-time) 
+       (cons
+        (make-date 1 month year) (make-date (days-in-month month year) month year))))
+
+   (make-rule date-range "(?i:Next month)" 
+     (with-date (:month month :year year) (get-universal-time) 
+       (let ((next-month (+ month 1)) (next-year year))
+         (when (> next-month 12)
+           (setf next-month 1)
+           (setf next-year (+ year 1)))
+         (cons
+          (make-date 1 next-month next-year) (make-date (days-in-month next-month next-year) next-month next-year)))))
+
+   (make-rule date-range "(?i:Last month)" 
+     (with-date (:month month :year year) (get-universal-time) 
+       (let ((last-month (- month 1)) (last-year year))
+         (when (< last-month 1)
+           (setf last-month 12)
+           (setf last-year (- year 1)))
+         (cons
+          (make-date 1 last-month last-year) (make-date (days-in-month last-month last-year) last-month last-year)))))
+   
+   (make-rule date "(?i:start of month)"
+     (with-date (:month month :year year) (get-universal-time)
+         (make-date 0 month year)))
+
+   (make-rule date "(?i:end of month)"
+     (with-date (:month month :year year) (get-universal-time)
+         (make-date (days-in-month month year) month year)))
+
+   (make-rule date "(?i:end of year)"
+     (with-date (:year year) (get-universal-time)
+         (make-date (days-in-month 12 year) 12 year)))
+
+   (make-rule date "(?i:start of year)"
+     (with-date (:year year) (get-universal-time)
+         (make-date 0 12 year)))
+
+   (make-rule date "(?i:Tommorow)"
+     (x-days (get-universal-time) 1))
+  
+   (make-rule date "(?i:Yesterday)"
+     (x-days (get-universal-time) -1))
+
+   (make-rule date-range "(?i:ddget)"
+     (cons
+      (x-days (x-working-days (x-days (get-universal-time) -1) 2) 1)
+      (x-working-days (x-days (get-universal-time) -1) 3)))
+
+   (make-rule year "[0-9]{4}" (parse-integer year :junk-allowed t))
+   (make-rule number "[0-9]+" (parse-integer number :junk-allowed t))))
+
+
+(defvar *date-logic-rules* 
+  (list
+   (craft-rule (month m day d year y) date (make-date d m y))
+   (craft-rule (day d month m year y) date (make-date d m y))
+   (craft-rule (date start range-seperator foo date end) date-range (make-date-range start end))
+   (craft-rule (date start date end) date-range (make-date-range start end))))
+
+(defun parse-date (string)
+  "Take a string containing a date or range of dates and return some tokens"
+  (parse string *date-token-rules* *date-logic-rules*))
+

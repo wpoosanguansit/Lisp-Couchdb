@@ -1,0 +1,225 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+;;(cl-couchdb-object-layer:defdoc resume-review-doc
+;;	   ((:resume :validator #'stringp)
+;;	    (:review-content :validator #'stringp)
+;;	    (:created-date :validator #'cl-couch::not-null)
+;;	    (:updated-date :validator #'cl-couch::not-null)
+;;	    (:status :validator #'stringp)
+;;	    (:_id :validator #'stringp))
+;;	    (:default-db 'resume-review))
+;;
+;;(cl-couchdb-object-layer:make-doc-and-save 'resume-review-doc :resume "watt@yahoo.com" :review-content "content" :created-date "12/10/2008" :updated-date "12/10/20080" :status "active")
+;;
+;;
+;;save the document to couchDB - check if the result return is the id, if not error.
+;;(defmethod save ((resume-review resume-review))
+;;    (if resume-review
+;;	(destructuring-bind (result) 
+;;	    (list (cl-couch::make-doc-and-save 'resume-review-doc
+;;				   :resume (resume resume-review)
+;;				   :review-content (review-content resume-review)
+;;				   :created-date (created-date resume-review)
+;;				   :updated-date (updated-date resume-review)
+;;				   :status "active"))
+;;	  (if (not (cl-ppcre:scan "^\\d*$" result))
+;;	      (error "error saving the resume-review : ~a " result)
+;;	      result))
+;;	(error "resume-review passed to save cannot be nil")))
+
+;;todo update method with handle-case for failure
+
+;;(cl-couchdb-client:couch-request* :put cl-couchdb-client:*couchdb-server* (list* 'resume-review (list (id rr))) 
+;;	    () cl-couchdb-client:+json-content-type+ (value-list-of rr 'as-alist 'without '(:ID :REV)))
+;;(db-request :put cl-couchdb-client:*couchdb-server* (list* 'resume-review (list (id rr))) 
+;;	    () (value-list-of rr 'as-alist 'without '(:REV)))
+
+(defmethod save ((resume-review resume-review))
+  (if (not (dirty-marker resume-review))
+      (values resume-review t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'resume-review (list (id resume-review))) ()  
+			     (value-list-of resume-review 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev resume-review) rev)
+	       (setf (dirty-marker resume-review) nil)
+	       (values resume-review ok)))))
+
+(defmethod save-or-update ((resume-review resume-review))
+  (if (persisted-object-p resume-review)
+      (update resume-review)
+      (save resume-review)))
+
+;;check the condition before saving
+
+(defmethod save :before ((resume-review resume-review))
+  (if (deleted-persisted-object-p resume-review)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "resume-review illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user resume-review)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save resume-review initial argument"
+				     :reason "user has to be persisted before saving")))
+
+;;this is to establish the relationship between the main object and sub object
+
+(defmethod save :after ((resume-review resume-review))
+  (let* ((resume (resume resume-review)))
+    (if (stringp resume)
+	(setf resume (retrieve 'resume-by-id resume)))
+    (add resume resume-review)
+    (update resume)))
+
+;;(apply 'cl-couch::make-doc 'resume-review-doc (cl-couch::alist-plist (cl-couch::couch-request :get (resume-review "watt@yahoo.com"))))
+
+;;(cl-couch::couch-request* :get cl-couch::*couchdb-server* (list 'resume-review '_all_docs) () () ())
+
+;;(cl-couchdb-client:couch-request* :get cl-couchdb-client:*couchdb-server* '(resume-review "watt@yahoo.com") () () ())
+;;we have to use cl-couchdb-client:couch-request* because it is a defun form and the argument get
+;;evaluated in place.  it is not the case for the cl-couch::couch-request which is macro.
+
+(defmethod retrieve ((object (eql 'resume-review-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'resume-review id) () () ()))
+  (make-resume-review document))
+
+
+;;it mus have the view in the couchdb
+;;{
+;;   "resume_review_by_resume_id": {
+;;       "map": "function ( doc ) { if ((doc.type == 'careerpacific:resume_review') && (doc.status != "deleted"))) { emit( doc.resume, doc ); } }"
+;;   }
+;;}
+;;this is using the generic name in the eql clause to differentiate kind of retrieval
+
+;;(cl-couch::couch-request :get (resume-review _design resume-review))
+;;(cl-couch::couch-request :get (resume-review _view resume-review resume-review))
+;;(cl-couch::couch-request* :get cl-couch::*couchdb-server* '(resume-review _view resume-review resume-review) ())
+;;(cl-couchdb-client:couch-request* :get cl-couchdb-client:*couchdb-server* '(resume-review _view resume-review resume-review) '(:key "/"watt@yahoo.com/""))
+;;we have to use unwrap-query-wrapper to take out the headings of the return result - ((:TOTAL-ROWS . 10) (:OFFSET . 0)(:ROWS ())) and return only :value's body.
+;;(cl-couchdb-client:couch-request :get (resume-review _view resume-review resume-review-by-resume-id :key "\"watt@yahoo.com\"" :startkey "\"watt@yahoo.com\""))
+
+(defmethod retrieve ((object (eql 'resume-review-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(resume-review _view resume-review resume-review-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-resume-review documents))
+
+;;(couch-request* :put *couchdb-server* (list 'user "81f1294ba8fb141dd95ac8fe4fadc067") () +json-content-type+ (plist-alist* :_rev "2732725491" :name "watt1" :lastname "poosanguansit1"))
+;;(cl-couch::couch-request* :put cl-couch::*couchdb-server* (list 'user "81f1294ba8fb141dd95ac8fe4fadc067") () cl-couch::+json-content-type+ (cl-couch::plist-alist* :_rev "1621431440"))
+;;(cl-couchdb-client:couch-request :put (resume-review "watt1@yahoo.com") (cl-couchdb-client:plist-alist (list :_rev "1401761676" :status "inactive"))) 
+;;
+;;we only change the status to deleted without really remove the record. it returns 2 values, the object itself and status.;;
+;;(cl-couchdb-client:couch-request* :put cl-couchdb-client:*couchdb-server* 
+;;		  (list 'resume-review "watt@yahoo.com_resume_1_resume-review_3004826852") () 
+;;                 cl-couchdb-client:+json-content-type+ 
+;;		  (substitute-item-in-list (value-list-of rr 'as-alist 'without '(:ID)) ':REV ':_REV))
+
+
+(defmethod erase ((resume-review resume-review))
+  (let* ((ok) (object)
+	 (prior-resume-review (copy-instance resume-review))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-resume-review) "deleted")
+	   (setf (updated-date prior-resume-review) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-resume-review)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev resume-review) (rev object))
+	(setf (status resume-review) "deleted")
+	(setf (updated-date resume-review) (get-today-date))
+	(setf (dirty-marker resume-review) nil)))
+    (values resume-review ok)))
+
+(defmethod erase :before ((resume-review resume-review))
+  (if (deleted-persisted-object-p resume-review)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "resume-review illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p resume-review))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase resume-review initial argument"
+				     :reason "resume has to be persisted before it can be erased")))
+
+;;it returns 2 values the object itself and the status t or nil for success or failure
+
+(defmethod update ((resume-review resume-review))
+  (if (not (dirty-marker resume-review))
+      (values resume-review t)
+      (progn
+	(setf (updated-date resume-review) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'resume-review (id resume-review)) () 
+			(substitute-item-in-list 
+			 (value-list-of resume-review 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev resume-review) rev)
+	  (setf (dirty-marker resume-review) nil)
+	  (values resume-review ok)))))
+
+(defmethod udpate :before ((resume-review resume-review))
+  (if (deleted-persisted-object-p resume-review)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "resume-review illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p resume-review))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update resume-review initial argument"
+				     :reason "resume-review has to be persisted before it can be updated")))
+
+;;internal function for taking a doc and create a resume-review object.  also this can be used
+;;in mapcar. doc is the structure returned from couchdb.
+
+(defun make-resume-review (document)
+  (make-instance 'resume-review
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :status (cdr (assoc :status document))
+		 :user (retrieve 'user-by-id (cdr (assoc :user document)))
+		 :resume (retrieve 'resume-by-id (cdr (assoc :resume document)))
+		 :review-content (cdr (assoc :review-content document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-resume-review-complete (document)
+  (make-instance 'resume-review
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :status (cdr (assoc :status document))
+		 :user (make-user (cadr (assoc :user document)))
+		 :resume (make-resume-complete (cadr (assoc :resume document)))
+		 :review-content (cdr (assoc :review-content document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+;;util for converting the values of keys and content by eval before passing them on to 
+;;the cl-couchdb-client:couchdb-request* in the macro db-request.  type must be either 'keys or 'content or 'path
+
+;;(defun process-list (keys-or-content-or-path-list type)
+;;  (let* ((keys (remove-if-not #'keywordp keys-or-content-or-path-list))
+;;	  (keys-values (mapcar #'(lambda (key-value) (values (eval (cadr key-value)))) 
+;;			       (group keys-or-content-or-path-list 2))))
+;;	   (case type
+;;	     ('path (list (mapcar #'(lambda (element) (if (not (listp element))
+;;							  element
+;;							  (values (eval element)))) keys-or-content-or-path-list)))
+;;	     ('keys (list (flatten  (mapcar #'list  keys keys-values))))
+;;	     ('content (list (cl-couchdb-client:plist-alist (flatten  
+;;							     (mapcar #'list  keys keys-values)))))
+;;	     (t (error "process-list: must be of type 'keys or 'content or 'path")))))
+;;

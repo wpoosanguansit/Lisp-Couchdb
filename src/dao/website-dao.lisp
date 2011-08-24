@@ -1,0 +1,126 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((website website))
+  (if (not (dirty-marker website))
+      (values website t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'website (list (id website))) ()  
+			     (value-list-of website 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev website) rev)
+	       (setf (dirty-marker website) nil)
+	       (values website ok)))))
+
+(defmethod save-or-update ((website website))
+  (if (persisted-object-p website)
+      (update website)
+      (save website)))
+
+;;check the condition before saving
+
+(defmethod save :before ((website website))
+  (if (deleted-persisted-object-p website)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user website)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save website initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'website-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'website id) () () ()))
+  (make-website document))
+
+(defmethod retrieve ((object (eql 'website-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(website _view website website-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-website documents))
+
+(defmethod erase ((website website))
+  (let* ((ok) (object)
+	 (prior-website (copy-instance website))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-website) "deleted")
+	   (setf (updated-date prior-website) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-website)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev website) (rev object))
+	(setf (status website) "deleted")
+	(setf (updated-date website) (get-today-date))
+	(setf (dirty-marker website) nil)))
+    (values website ok)))
+
+(defmethod erase :before ((website website))
+  (if (deleted-persisted-object-p website)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p website))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase website initial argument"
+				     :reason "website has to be persisted before it can be erased")))
+
+(defmethod update ((website website))
+  (if (not (dirty-marker website))
+      (values website t)
+      (progn
+	(setf (updated-date website) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'website (id website)) () 
+			(substitute-item-in-list 
+			 (value-list-of website 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev website) rev)
+	  (setf (dirty-marker website) nil)
+	  (values website ok)))))
+
+(defmethod udpate :before ((website website))
+  (if (deleted-persisted-object-p website)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p website))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update website initial argument"
+				     :reason "website has to be persisted before it can be updated")))
+
+(defun make-website (document)
+  (make-instance 'website 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (retrieve 'user-by-id (cdr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :website-type (cdr (assoc :website-type document))
+		 :website (cdr (assoc :website document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-website-complete (document)
+  (make-instance 'website 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (make-user (cadr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :website-type (cdr (assoc :website-type document))
+		 :website (cdr (assoc :website document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

@@ -1,0 +1,128 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((language language))
+  (if (not (dirty-marker language))
+      (values language t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'language (list (id language))) ()  
+			     (value-list-of language 'as-alist 'without '(:ID :REV :DIRTY-MARKER) 'sub-object-as-id)
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev language) rev)
+	       (setf (dirty-marker language) nil)
+	       (values language ok)))))
+
+(defmethod save-or-update ((language language))
+  (if (persisted-object-p language)
+      (update language)
+      (save language)))
+
+;;check the condition before saving
+
+(defmethod save :before ((language language))
+  (if (deleted-persisted-object-p language)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "language illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user language)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save language initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'language-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'language id) () () ()))
+  (make-language document))
+
+(defmethod retrieve ((object (eql 'language-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(language _view language language-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-language documents))
+
+(defmethod erase ((language language))
+  (let* ((ok) (object)
+	 (prior-language (copy-instance language))) 
+    (unwind-protect
+	 (progn
+	   (setf (status prior-language) "deleted")
+	   (setf (updated-date prior-language) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-language)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev language) (rev object))
+	(setf (status language) "deleted")
+	(setf (updated-date language) (get-today-date))
+	(setf (dirty-marker language) nil)))
+    (values language ok)))
+
+(defmethod erase :before ((language language))
+  (if (deleted-persisted-object-p language)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "language illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p language))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase language initial argument"
+				     :reason "language has to be persisted before it can be erased")))
+
+(defmethod update ((language language))
+  (if (not (dirty-marker language))
+      (values language t)
+      (progn
+	(setf (updated-date language) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'language (id language)) () 
+			(substitute-item-in-list 
+			 (value-list-of language 'as-alist 'without '(:ID :DIRTY-MARKER) 'sub-object-as-id) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev language) rev)
+	  (setf (dirty-marker language) nil)
+	  (values language ok)))))
+
+(defmethod udpate :before ((language language))
+  (if (deleted-persisted-object-p language)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "language illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p language))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update language initial argument"
+				     :reason "language has to be persisted before it can be updated")))		       
+
+(defun make-language (document)
+  (make-instance 'language 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (retrieve 'user-by-id (cdr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :language-name (cdr (assoc :language-name document))
+		 :writing-level (cdr (assoc :writing-level document))
+		 :spoken-level (cdr (assoc :spoken-level document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
+(defun make-language-complete (document)
+  (make-instance 'language 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (make-user (cadr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :language-name (cdr (assoc :language-name document))
+		 :writing-level (cdr (assoc :writing-level document))
+		 :spoken-level (cdr (assoc :spoken-level document))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))

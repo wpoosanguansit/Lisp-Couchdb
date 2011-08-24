@@ -1,0 +1,180 @@
+(in-package :careerpacific)
+
+(export '())
+
+(defclass website ()  
+  ((id              :initarg :id
+	            :initform nil
+	            :accessor id)
+   (rev             :initarg :rev
+	            :initform nil
+	            :accessor rev)
+   (user            :initarg :user
+	            :initform (error 'careerpacific-invalid-arguments-error
+ 				     :error-number 2001 :error-type "website initial argument"
+				     :reason ":user must be provided.")
+		    :accessor user)
+   (website-type    :initarg :website-type
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "website initial argument"
+				     :reason ":website-type must be provided.")
+	            :accessor website-type)
+   (website         :initarg :website
+		    :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "website initial argument"
+				     :reason ":website must be provided.")
+		    :accessor website)
+   (status          :initarg :status
+	            :initform "active"
+	            :accessor status)
+   (created-date    :initarg :created-date
+	            :initform (funcall #'get-today-date)
+	            :reader created-date)
+   (updated-date    :initarg :updated-date
+	            :initform (funcall #'get-today-date)
+	            :accessor updated-date)
+   (dirty-marker    :initarg :dirty-marker
+		    :initform t
+		    :accessor dirty-marker)))
+
+;;this is for the validation of the data
+
+(defmethod initialize-instance :after ((self website) &rest args)
+  (if (not (and (eql 'user (type-of (user self)))
+		(persisted-object-p (user self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "website initial argument"
+				     :reason "user has to be a peristed user object"))
+  (if (not (member (website-type self) *valid-website-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "website initial argument"
+				     :reason "website-type passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (website-type self) *valid-website-type*))
+  (if (not (stringp (website self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason "website has to be string. 
+                                           it has to be in the format \"user@website.com\""))
+  (if (not (member (status self) *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "website initial argument"
+				     :reason "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (status self) *valid-object-status*))
+  (if (not (id self))
+      (setf (id self) (generate-unique-id (id (user self)) "website"))))
+
+
+;;immutable slot
+
+;;(defmethod (setf created-date) :before (value (self website))
+;;  (error 'careerpacific-illegal-operation-error
+;;	 :error-number 3001 :error-type "website illegal setf"
+;;	 :reason "created-date is immutable, it can not be setf"))
+
+;;check the arguments
+
+(defmethod (setf id) :before (value (self website))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason "id has to be string. 
+                                      it has to be in the format \"user@website.com_website_1\"")))
+
+(defmethod (setf rev) :before (value (self website))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason "rev has to be string")))
+
+
+(defmethod (setf user) :before (value (self website))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (eql 'user (type-of value)) 
+		(persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason "user has to be a persisted user object")))
+
+
+(defmethod (setf website-type) :before (value (self website))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-website-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website initial argument"
+	     :reason "website-type passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-website-type*)))
+
+(defmethod (setf website) :before (value (self website))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason (format nil "website passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf status) :before (value (self website))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "website illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-object-status*))))
+
+(defmethod (setf updated-date) :before (value (self website))
+  (if (not (stringp value)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason (format nil "updated-date passed : ~a  is not a valid value. 
+              it has to be a date" value))))
+
+(defmethod (setf dirty-marker) :before (value (self website))
+  (if (not (member value '(nil t))) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "website setf argument"
+	     :reason (format nil "dirty-marker passed : ~a  is not a valid value. it has to be one                                       of nil or t" value))))
+
+;;this method check the values being set and set the dirty-marker to t when setf is called
+
+(defmethod (setf id) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf rev) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf user) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf website-type) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf website) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf status) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf updated-date) :after (value (self website))
+  (setf (dirty-marker self) t))
+
+;;methods accessing the slots
+
+(defmethod user :before ((self website))
+  )

@@ -1,0 +1,177 @@
+(in-package :careerpacific)
+
+(defclass email ()  
+  ((id              :initarg :id
+	            :initform nil
+	            :accessor id)
+   (rev             :initarg :rev
+	            :initform nil
+	            :accessor rev)
+   (user            :initarg :user
+	            :initform (error 'careerpacific-invalid-arguments-error
+ 				     :error-number 2001 :error-type "email initial argument"
+				     :reason ":user must be provided.")
+		    :accessor user)
+   (email-type      :initarg :email-type
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "email initial argument"
+				     :reason ":email-type must be provided.")
+	            :accessor email-type)
+   (email           :initarg :email
+		    :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "email initial argument"
+				     :reason ":email must be provided.")
+		    :accessor email)
+   (status          :initarg :status
+	            :initform "active"
+	            :accessor status)
+   (created-date    :initarg :created-date
+	            :initform (funcall #'get-today-date)
+	            :reader created-date)
+   (updated-date    :initarg :updated-date
+	            :initform (funcall #'get-today-date)
+	            :accessor updated-date)
+   (dirty-marker    :initarg :dirty-marker
+		    :initform t
+		    :accessor dirty-marker)))
+
+;;this is for the validation of the data
+
+(defmethod initialize-instance :after ((self email) &rest args)
+  (if (not (and (eql 'user (type-of (user self)))
+		(persisted-object-p (user self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "email initial argument"
+				     :reason "user has to be a string or a peristed user object"))
+  (if (not (member (email-type self) *valid-email-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "email initial argument"
+				     :reason "email-type passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (email-type self) *valid-email-type*))
+  (if (not (stringp (email self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason "email has to be string. 
+                                           it has to be in the format \"user@email.com\""))
+  (if (not (member (status self) *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "email initial argument"
+				     :reason "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (status self) *valid-object-status*))
+  (if (not (id self))
+      (setf (id self) (generate-unique-id (id (user self)) "email"))))
+
+
+;;immutable slot
+
+;;(defmethod (setf created-date) :before (value (self email))
+;;  (error 'careerpacific-illegal-operation-error
+;;	 :error-number 3001 :error-type "email illegal setf"
+;;	 :reason "created-date is immutable, it can not be setf"))
+
+;;check the arguments
+
+(defmethod (setf id) :before (value (self email))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason "id has to be string. 
+                                      it has to be in the format \"user@email.com_email_1\"")))
+
+(defmethod (setf rev) :before (value (self email))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason "rev has to be string")))
+
+
+(defmethod (setf user) :before (value (self email))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (eql 'user (type-of value))
+		(persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason "user has to be a string or persisted user object")))
+
+(defmethod (setf email-type) :before (value (self email))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-email-type* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email initial argument"
+	     :reason "email-type passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-email-type*)))
+
+(defmethod (setf email) :before (value (self email))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason (format nil "email passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf status) :before (value (self email))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "email illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-object-status*))))
+
+(defmethod (setf updated-date) :before (value (self email))
+  (if (not (stringp value)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason (format nil "updated-date passed : ~a  is not a valid value. 
+              it has to be a date" value))))
+
+(defmethod (setf dirty-marker) :before (value (self email))
+  (if (not (member value '(nil t))) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "email setf argument"
+	     :reason (format nil "dirty-marker passed : ~a  is not a valid value. it has to be one                                       of nil or t" value))))
+
+;;this method check the values being set and set the dirty-marker to t when setf is called
+
+(defmethod (setf id) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf rev) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf user) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf email-type) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf email) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf status) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf updated-date) :after (value (self email))
+  (setf (dirty-marker self) t))
+
+;;methods accessing the slots
+
+(defmethod user :before ((self email))
+  )

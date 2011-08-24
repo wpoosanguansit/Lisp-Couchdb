@@ -1,0 +1,33 @@
+(in-package :careerpacific)
+
+(defdoc user
+	   ((:firstname :validator #'stringp)
+	    (:middlename )
+	    (:lastname :validator #'stringp)
+	    (:username :validator #'stringp)
+	    (:password :validator #'stringp)
+	    (:_id :initform (lambda (doc) (url-encode (@ doc :username)))))
+	    (:default-db 'user))
+
+(defdoc candidate
+	   ((:firstname :validator #'stringp)
+	    (:middlename )
+	    (:lastname :validator #'stringp)
+	    (:username :validator #'stringp)
+	    (:password :validator #'stringp)
+	    (:resume )
+	    (:_id :initform (lambda (doc) (url-encode (@ doc :username)))))
+	    (:default-db 'user))
+
+(defmethod save (object candidate)
+  (let result (cl-couch:make-doc-and-save 
+	       :firstname (firstname candidate)
+	       :middlename (middlename candidate)
+	       :lastname (lastname candidate)
+	       :username (username candidate)
+	       :password (password candidate)
+	       :type "candidate"
+	       :resume (resume candidate))
+       if result
+       result
+       (error result)))

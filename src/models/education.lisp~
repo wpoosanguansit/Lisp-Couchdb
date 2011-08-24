@@ -1,0 +1,236 @@
+(in-package :careerpacific)
+
+(defclass education ()
+  ((id              :initarg :id
+	            :initform nil
+	            :accessor id)
+   (rev             :initarg :rev
+	            :initform nil
+	            :accessor rev)
+   (user            :initarg :user
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason ":user must be provided.")
+		    :accessor user)
+   (education-level :initarg :education-level 
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason ":education-level  must be provided.")
+	            :accessor education-level)
+   (institution-name :initarg :institution-name
+		     :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason ":institution-name must be provided.")
+		     :accessor institution-name)
+   (location        :initarg :location
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason ":location must be provided.")
+	            :accessor location)
+   (comment         :initarg :comment
+	            :initform nil
+	            :accessor comment)
+   (graduation-date :initarg :graduation-date
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason ":graduation-date must be provided.")
+	            :accessor graduation-date)
+   (status          :initarg :status
+	            :initform "active"
+	            :accessor status)
+   (created-date    :initarg :created-date
+	            :initform (funcall #'get-today-date)
+	            :reader created-date)
+   (updated-date    :initarg :updated-date
+	            :initform (funcall #'get-today-date)
+	            :accessor updated-date)
+   (dirty-marker    :initarg :dirty-marker
+		    :initform t
+		    :accessor dirty-marker)))
+
+;;this is for the validation of the data
+;;and setting the id for the instance, the id
+;;will be the combination of the resume id + 
+;;the unique random no of education
+
+(defmethod initialize-instance :after ((self education) &rest args)
+  (if (not (and (eql 'user (type-of (user self)))
+		(persisted-object-p (user self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education initial argument"
+				     :reason "user has to be a string or persisted user object"))
+  (if (not (stringp (education-level self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education initial argument"
+	     :reason "education-level has to be string"))
+  (if (not (stringp (institution-name self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education initial argument"
+	     :reason "institution-name has to be string"))
+  (if (not (stringp (location self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education initial argument"
+	     :reason "location has to be string"))
+  (if (not (stringp (graduation-date self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education initial argument"
+	     :reason "graduation-date has to be string"))
+  (if (not (id self))
+      (setf (id self) (generate-unique-id (id (user self)) "education"))))
+
+;;immutable slot
+
+;;(defmethod (setf created-date) :before (value (self education))
+;;  (error 'careerpacific-illegal-operation-error
+;;	 :error-number 3001 :error-type "education illegal setf"
+;;	 :reason "created-date is immutable, it can not be setf"))
+
+;;check the arguments
+
+(defmethod (setf id) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason "id has to be string. 
+                                      it has to be in the format \"user@email.com_education_1\"")))
+
+(defmethod (setf rev) :before (value (self education))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason "rev has to be string")))
+
+(defmethod (setf user) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (eql 'user (type-of value))
+		(persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason "user has to be string. 
+                                      it has to be in the format \"user@email.com\"")))
+
+
+(defmethod (setf education-level) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-education-level* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education setf argument"
+				     :reason (format nil "educaiton-level passed is not valid string : ~a. it has to be one                                     of these values : ~{~a~^, ~}" value *valid-education-level*))))
+
+(defmethod (setf institution-name) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "institution-name passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf graduation-date) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "graduation-date passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf comment) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "comment passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf location) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "number-of-year passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf status) :before (value (self education))
+  (if ( deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "education illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "education setf argument"
+				     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-object-status*))))
+
+(defmethod (setf updated-date) :before (value (self education))
+  (if (not (stringp value)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "updated-date passed : ~a  is not a valid value. 
+              it has to be a date" value))))
+
+(defmethod (setf dirty-marker) :before (value (self education))
+  (if (not (member value '(nil t))) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "education setf argument"
+	     :reason (format nil "dirty-marker passed : ~a  is not a valid value. it has to be one                                       of nil or t" value))))
+  
+;;this method check the values being set and set the dirty-marker to t when setf is called
+
+(defmethod (setf id) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf rev) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf user) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf education-level) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf institution-name) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf graduation-date) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf comment) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf location) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf status) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf updated-date) :after (value (self education))
+  (setf (dirty-marker self) t))
+
+;;methods accessing the slots
+
+(defmethod user :before ((self education))
+  )

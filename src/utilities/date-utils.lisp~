@@ -1,0 +1,242 @@
+(in-package :careerpacific)
+(:export :date-range
+         :format-date
+         :work-day?
+         :next-day
+         :prev-day
+         :day-name
+         :split-by-one-space
+         :with-date
+         :read-date
+         :date-within-range?     
+         :date>
+         :date<
+         :make-date)
+
+
+(defvar *day-names* '((01 . "Mon") (02 . "Tue") (03 . "Wed") (04 . "Thu")
+                      (05 . "Fri") (06 . "Sat") (0 . "Sun")))
+
+(defvar *bank-holidays* ())
+(defvar *months* '((01 . 31) (03 . 31) (04 . 30) (05 . 31) 
+                  (06 . 30) (07 . 31) (08 . 31) (09 . 30)
+                  (10 . 31) (11 . 30) (12 . 31)))                      
+
+(defmacro with-date ((&key (day '#:unused-day) (month '#:unused-month) (year '#:unused-year) 
+                           (day-of-week '#:unused-day-of-week) (second '#:unused-second) (minute '#:unused-minute) 
+                           (hour '#:unused-hour) (tz '#:unused-tz) (dst-p '#:unused-dst-p))
+                     date &body body)
+  "Take a date, split it up into it's parts and run the code in body."
+  `(multiple-value-bind
+         (,second ,minute ,hour ,day ,month ,year ,day-of-week ,dst-p ,tz)
+       (decode-universal-time ,date)
+     (declare (ignorable ,second ,minute ,hour ,day ,month ,year ,day-of-week ,dst-p ,tz))
+     ,@body))
+
+(defun leap-year? (year)
+  "Take a year and return T if a leap year, otherwise NIL"
+  (or (and (eql 0 (mod year 4)) (not (eql 0 (mod year 100))))
+          (eql 0 (mod year 400))))
+
+(defun days-in-month (month year)
+  "Takes a month,year and returns the number of days in it"
+  (if (not (eql month 2))
+      (cdr (assoc month *months*))
+      (if (leap-year? year)
+          29
+          28)))
+
+(defun real-date? (day month year)
+  "Take a day, month and year and return t if the date is valid, nil otherwise"
+  (if (and (> day 0) (> month 0) (> year 1000)
+           (<= month 12)
+           (<= year 3000)
+           (<= day (days-in-month month year)))
+      t
+      nil))
+
+(defun make-date (day month year &optional (hour 0) (minute 0) (second 0))
+  "Take the different parts of a date and return a universal date"
+  (when (real-date? day month year) 
+    (encode-universal-time second minute hour day month year)))
+
+(defun gregorian-weekday (date)
+; Credit to someone in #emacs (consolers I think but I forget)
+  "Return the day of week for the date given, 0 indexed so 0 for Sunday, 1 for Monday etc"
+  (with-date (:day day :month month :year year) date
+    (mod (+ 0
+            (* 365 (1- year)) (floor (1- year) 4) (- (floor (1- year) 100))
+            (floor (1- year) 400) (floor (- (* 367 month) 362) 12) 
+            (if (<= month 2) 
+                0 
+                (if (and (= (mod year 4) 0) (not (member (mod year 400) (list 100 200 300))))
+                    -1 
+                    -2)) 
+            day) 
+         7)))
+  
+(defun file-lines (path)
+; Credit to http://www.cl-user.net/asp/html-docs/process-file-snippset
+  "Sucks up an entire file from PATH into a list of freshly-allocated
+      strings, returning two values: the list of strings and the number of
+      lines read."
+  (with-open-file (s path)
+    (loop for line = (read-line s nil nil)
+       while line
+       collect line into lines
+       counting t into line-count
+       finally (return (values lines line-count)))))
+
+(defun split-by-one-space (string)
+; Credit to http://cl-cookbook.sourceforge.net/strings.html#reverse
+  "Returns a list of substrings of string divided by ONE space each. Note: Two consecutive spaces will be seen as if there were an empty string between them."
+  (loop for i = 0 then (1+ j)
+     as j = (position #\Space string :start i)
+     collect (parse-integer (subseq string i j) :junk-allowed t)
+     while j))
+
+
+
+(defun read-date (date-string)
+  "Take a string containg a date and return the date structure, or NIL if the string is in the wrong format"
+  (let ((loaded-date (split-by-one-space date-string)))
+    (if (and (equal (length loaded-date) 3)
+             (every 'numberp loaded-date)
+             (real-date? (car loaded-date) (cadr loaded-date) (caddr loaded-date)))
+        (make-date (car loaded-date) (cadr loaded-date) (caddr loaded-date))
+        nil)))
+
+(defun load-date (filename)
+  "Take a filename and read a list of space seperated dates into a list, returns the list"
+  (loop for line in (file-lines filename)
+     collect (split-by-one-space line)))
+
+;;(setf *bank-holidays* (load-date "/var/www/lisp/bank-holidays.txt"))
+
+(defun bank-holiday? (date)
+  "Return T if bank-holiday and nil otherwise"
+  (with-date (:day day :month month :year year) date
+    (find date *bank-holidays* :test #'equal)))
+
+(defun next-day (date)
+  "Take a date and return the next one"
+  (with-date (:day day :month month :year year) date
+    (if (not (eql day (days-in-month month year)))
+        (make-date (+ 1 day) month year)
+        (if (eql month 12)
+            (make-date 1 1 (+ 1 year))
+            (make-date 1 (+ 1 month) year)))))
+
+(defun prev-day (date)
+  "Take a date and return the previous one"
+  (with-date (:day day :month month :year year) date
+    (if (not (eql day 1))
+        (make-date (- day 1) month year)
+        (if (eql month 1)
+            (make-date (days-in-month 12 year) 12 (- year 1))
+            (make-date (days-in-month (- month 1) year) (- month 1) year)))))
+
+(defun weekday? (date)
+  "Return the day number if a weekday, otherwise NIL"
+  (with-date (:day day :month month :year year) date
+    (let ((day-of-week (gregorian-weekday date)))
+      (if (and (< day-of-week 6) (> day-of-week 0))
+          day-of-week
+          NIL))))
+
+(defun work-day? (date)
+  "Take a Date and return t if it's a working day, NIL otherwise"
+  (with-date (:day day :month month :year year) date
+    (if (and (weekday? date)
+             (not (bank-holiday? date)))
+        T
+        nil)))
+
+(defun x-working-days (date x)
+  "Take a date and return the date of x working days afterwards (negative number for previous)"
+  (if (eql 0 x)
+      date
+      (let ((current-date date) (i -1))
+        (loop 
+           until (> i (abs x))
+           when (work-day? current-date)
+           do (incf i)
+           when (> (abs x) i)
+           do (setf current-date 
+                    (if (> x 0)
+                        (next-day current-date)
+                        (prev-day current-date)))
+           finally (return current-date)))))
+
+(defun return-dates (date)
+  "Take a 'valueDate' and return the send and completion date"
+  (with-date (:day day :month month :year year) date
+    (list date
+          (if (work-day? date)
+              (x-working-days date -2)
+              (x-working-days date -1))
+          (x-working-days date 2))))
+
+(defun grab-dates (start-date end-date)
+  "Get the send and completion date for every date in the range (inclusive), then return a list of 'um"
+  (let ((current-date start-date))
+    (loop until (equal current-date (next-day end-date))
+       collect (return-dates current-date)
+       do (setf current-date (next-day current-date)))))
+
+(defun format-number (number)
+  "Take a number and return it as a string, put a 0 infrount of it if it's single digits"
+  (if (and (> number -1) (< number 10))
+      (format nil "0~A" number)
+      (format nil "~A" number)))
+
+(defun format-date (date)
+  "Take a date and return it as a nicely formatted string"
+  (with-date (:day day :month month :year year) date
+    (format nil "~A/~A/~A" (format-number day) (format-number month) year)))
+
+(defun day-name (date)
+  (with-date (:day day :month month :year year) date
+    (cdr (assoc (gregorian-weekday date) *day-names*))))
+
+(defun date> (first second)
+  "Returns nil if second date is larger than first, otherwise it returns first"
+  (with-date (:day first-day :month first-month :year first-year) first
+    (with-date (:day second-day :month second-month :year second-year) second
+      (if (equal (list first-day first-month first-year) (list second-day second-month second-year))
+          nil
+          (if (or (> first-year second-year)
+                  (and (equal first-year second-year)
+                       (> first-month second-month))
+                  (and (equal first-year second-year)
+                       (equal first-month second-month)
+                       (> first-day second-day)))
+              first
+              nil)))))
+
+(defun date< (first second)
+  "Returns nil if second date is smaller than first, otherwise it returns first"
+  (if (date> second first)
+      first
+      nil))
+
+(defun date-within-range? (date max-date min-date)
+  "Return date if it's in-between the min and max dates, inclusively"
+  (if (and (or (equal date min-date) (date> date min-date))
+           (or (equal date max-date) (date< date max-date)))
+      date
+      nil))
+  
+(defun date-range (start end)
+  "Take two dates and return the inclusive range between them."
+  (if (equal start end)
+      (list start)
+      (if (date> start end)
+          (cons start (date-range (prev-day start) end))
+          (cons start (date-range (next-day start) end)))))
+
+(defun get-today-date ()
+  (multiple-value-bind (s min h d m y) 
+         (decode-universal-time 
+            (get-universal-time)) 
+	(format nil "~a\/~a\/~a" (write-to-string m) (write-to-string d) (write-to-string y))))

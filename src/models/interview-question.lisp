@@ -1,0 +1,207 @@
+(in-package :careerpacific)
+
+(export '())
+
+(defclass interview-question ()  
+  ((id              :initarg :id
+	            :initform nil
+	            :accessor id)
+   (rev             :initarg :rev
+	            :initform nil
+	            :accessor rev)
+   (user            :initarg :user
+	            :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "interview-question initial argument"
+				     :reason ":user must be provided.")
+	            :accessor user)
+   (job-application-id         :initarg :job-application-id
+			       :initform (error 'careerpacific-invalid-arguments-error
+						:error-number 2001 :error-type "interview-question initial argument"
+						:reason ":job-application-id must be provided.")
+			       :accessor job-application-id)
+   (interview-question         :initarg :interview-question
+			       :initform (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "interview-question initial argument"
+				     :reason ":interview-question must be provided.")
+			       :accessor interview-question)
+   (interview-answer           :initarg :interview-answer
+			       :initform nil
+			       :accessor interview-answer)
+   (consultant-note            :initarg :consultant-note
+			       :initform nil
+			       :accessor consultant-note)
+   (status          :initarg :status
+	            :initform "active"
+	            :accessor status)
+   (created-date    :initarg :created-date
+	            :initform (funcall #'get-today-date)
+	            :reader created-date)
+   (updated-date    :initarg :updated-date
+	            :initform (funcall #'get-today-date)
+	            :accessor updated-date)
+   (dirty-marker    :initarg :dirty-marker
+		    :initform t
+		    :accessor dirty-marker)))
+
+;;this is for the validation of the data
+
+(defmethod initialize-instance :after ((self interview-question) &rest args)
+  (if (not (and (string-equal "employer" (user-type (user self)))
+		(persisted-object-p (user self))))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "interview-question initial argument"
+				     :reason "user has to be a persisted employer user object"))
+  (if (not (stringp (job-application-id self)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "interview-question initial argument"
+				     :reason "job-application-id has to be a string of a peristed job-application object"))
+  (if (not (stringp (interview-question self)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "interview-question has to be string. 
+                                           it has to be in the format \"job-application@interview-question.com\""))
+  (if (not (member (status self) *valid-object-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "interview-question initial argument"
+				     :reason "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" (status self) *valid-object-status*))
+  (if (not (id self))
+      (setf (id self) (generate-unique-id (id (user self)) "interview_question"))))
+
+
+;;immutable slot
+
+;;(defmethod (setf created-date) :before (value (self interview-question))
+;;  (error 'careerpacific-illegal-operation-error
+;;	 :error-number 3001 :error-type "interview-question illegal setf"
+;;	 :reason "created-date is immutable, it can not be setf"))
+
+;;check the arguments
+
+(defmethod (setf id) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "id has to be string. 
+                                      it has to be in the format \"job-application@interview-question.com_interview-question_1\"")))
+
+(defmethod (setf rev) :before (value (self interview-question))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "rev has to be string")))
+
+(defmethod (setf user) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (and (string-equal "employer" (user-type value))
+		(persisted-object-p value)))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "user has to be a persisted employer user object")))
+
+(defmethod (setf job-application-id) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "job-application-id passed has to be a string of a persisted job-application object")))
+
+(defmethod (setf interview-question) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason (format nil "interview-question passed : ~a is not valid, 
+                                      it has to be string" value))))
+
+(defmethod (setf interview-answer) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp interview answer)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question initial argument"
+	     :reason "interview-answer passed is not a string")))
+
+(defmethod (setf consultant-note) :before (value (self resume))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (stringp value))
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason "consultant-note has to be string")))
+
+(defmethod (setf status) :before (value (self interview-question))
+  (if (deleted-persisted-object-p self)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "interview-question illegal setf"
+	     :reason "object is deleted, it can not be setf"))
+  (if (not (member value *valid-interview-question-status* :test #'string-equal)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason (format nil "status passed is not valid string : ~a. it has to be one 
+                                      of these values : ~{~a~^, ~}" value *valid-interview-question-status*))))
+
+(defmethod (setf updated-date) :before (value (self interview-question))
+  (if (not (stringp value)) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason (format nil "updated-date passed : ~a  is not a valid value. 
+              it has to be a date" value))))
+
+(defmethod (setf dirty-marker) :before (value (self interview-question))
+  (if (not (member value '(nil t))) 
+      (error 'careerpacific-invalid-arguments-error
+	     :error-number 2001 :error-type "interview-question setf argument"
+	     :reason (format nil "dirty-marker passed : ~a  is not a valid value. it has to be one                                       of nil or t" value))))
+
+;;this method check the values being set and set the dirty-marker to t when setf is called
+
+(defmethod (setf id) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+
+(defmethod (setf rev) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf user) :after (value (self resume-review))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf job-application-id) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf interview-question) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf interview-answer) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf consultant-note) :after (value (self resume))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf status) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+(defmethod (setf updated-date) :after (value (self interview-question))
+  (setf (dirty-marker self) t))
+
+;;methods accessing the slots
+
+(defmethod user :before ((self interview-question))
+  )

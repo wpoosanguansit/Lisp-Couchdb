@@ -1,0 +1,123 @@
+(in-package :careerpacific)
+
+(export '(retrieve save delete update))
+
+(defmethod save ((job-application job-application))
+  (if (not (dirty-marker job-application))
+      (values job-application t)
+      (progn
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			     (list* 'job-application (list (id job-application))) ()  
+			     (remove-id-and-rev 
+			      (value-list-of job-application 'as-alist 'without '(:DIRTY-MARKER)))
+			     cl-couchdb-client:+json-content-type+)
+	       (declare (ignore ok_ id_ rev_))
+	       (setf (rev job-application) rev)
+	       (setf (dirty-marker job-application) nil)
+	       (values job-application ok)))))
+
+(defmethod save-or-update ((job-application job-application))
+  (if (persisted-object-p job-application)
+      (update job-application)
+      (save job-application)))
+
+;;check the condition before saving
+
+(defmethod save :before ((job-application job-application))
+  (if (deleted-persisted-object-p job-application)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "job-application illegal operation"
+	     :reason "object is deleted, it can not be saved"))
+  (if (not (persisted-object-p (user job-application)))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "save job-application initial argument"
+				     :reason "user has to be persisted before saving")))
+  
+
+(defmethod retrieve ((object (eql 'job-application-by-id)) id)
+  (setf document 
+	(db-request :get cl-couchdb-client:*couchdb-server* 
+					  (list 'job-application id) () () ()))
+  (make-job-application document))
+
+(defmethod retrieve ((object (eql 'job-application-by-user-id)) id)
+  (setf documents (unwrap-query-wrapper 
+	      (db-request :get cl-couchdb-client:*couchdb-server* 
+						'(job-application _view job-application job-application-by-user-id) 
+						(prepare-keys (list :key id)))))
+  (mapcar #'make-job-application documents))
+
+(defmethod erase ((job-application job-application))
+  (let* ((ok) (object)
+	 (prior-job-application (copy-instance job-application)))
+    (unwind-protect
+	 (progn
+	   (setf (status prior-job-application) "deleted")
+	   (setf (updated-date prior-job-application) (get-today-date))
+	   (multiple-value-bind (_object _ok) (update prior-job-application)
+	     (setf object _object) 
+	     (setf ok _ok)))
+      (when ok 
+	(setf (rev job-application) (rev object))
+	(setf (status job-application) "deleted")
+	(setf (updated-date job-application) (get-today-date))
+	(setf (dirty-marker job-application) nil)))
+    (values job-application ok)))
+
+(defmethod erase :before ((job-application job-application))
+  (if (deleted-persisted-object-p job-application)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "job-application illegal operation"
+	     :reason "object is deleted, it can not be erased"))
+  (if (not (persisted-object-p job-application))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "erase job-application initial argument"
+				     :reason "job-application has to be persisted before it can be erased")))
+
+(defmethod update ((job-application job-application))
+  (if (not (dirty-marker job-application))
+      (values job-application t)
+      (progn
+	(setf (updated-date job-application) (get-today-date))
+	(destructuring-bind ((ok_ . ok) (id_ . id) (rev_ . rev))
+	    (db-request :put cl-couchdb-client:*couchdb-server* 
+			(list 'job-application (id job-application)) () 
+			(substitute-item-in-list 
+			 (value-list-of job-application 'as-alist 'without '(:ID :DIRTY-MARKER)) 
+			 ':REV ':_REV)
+			cl-couchdb-client:+json-content-type+)		 
+	  (declare (ignore id_ ok_ rev_))
+	  (setf (rev job-application) rev)
+	  (setf (dirty-marker job-application) nil)
+	  (values job-application ok)))))
+
+(defmethod udpate :before ((job-application job-application))
+  (if (deleted-persisted-object-p job-application)
+      (error 'careerpacific-illegal-operation-error
+	     :error-number 3002 :error-type "job-application illegal operation"
+	     :reason "object is deleted, it can not be updated"))
+  (if (not (persisted-object-p job-application))
+      (error 'careerpacific-invalid-arguments-error
+				     :error-number 2001 :error-type "update job-application initial argument"
+				     :reason "job-application has to be persisted before it can be updated")))
+
+;;because we do save the full object not just id in the job-application
+;;so we have to have a special make-resume and make-job-posting that take 
+;;the full object information not just the ids of its sub objects
+
+(defun make-job-application (document)
+  (make-instance 'job-application 
+		 :id (or (cdr (assoc :_id document)) (cdr (assoc :id document)))
+		 :rev (or (cdr (assoc :_rev document)) (cdr (assoc :rev document)))
+		 :user (make-user (cadr (assoc :user document)))
+		 :status (cdr (assoc :status document))
+		 :resume (make-resume-complete (cadr (assoc :resume document)))
+		 :job-posting (make-job-posting-complete (cadr (assoc :job-posting document)))
+		 :job-application-note (cdr (assoc :job-application-note document))
+		 :interview-questions (retrieve-object-complete-list 
+				       #'make-interview-question-complete (cdr (assoc :interview-questions document)))
+		 :created-date (cdr (assoc :created-date document))
+		 :updated-date (cdr (assoc :updated-date document))
+		 :dirty-marker nil))
+
